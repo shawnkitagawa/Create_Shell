@@ -60,17 +60,74 @@ int main()
 {
 	struct command_line *curr_command;
 	int childStatus;
+	bool has_child_status = false;
 
 	while(true)
 	{
-		bool isInput = false;
-		bool isOutput = false;
 		curr_command = parse_input();
 
+		// comments and blank line 
 		if (curr_command->argc == 0 || curr_command->argv[0][0] == '#') 
 		{
     		continue;
 		}
+
+		//may have addition step 
+		if (strcmp(curr_command->argv[0], "exit") == 0) {
+			free(curr_command);
+			break;
+		}
+
+		//handle cd
+
+		//when no argument 
+		if (strcmp(curr_command->argv[0], "cd") == 0 && curr_command->argc == 1 ) 
+		{
+			int result = chdir(getenv("HOME"));
+
+			if (result == -1)
+			{
+				perror("chdir failed");
+			}
+
+			continue;
+		}
+
+		// when there is argument
+		else if (strcmp(curr_command->argv[0], "cd") == 0 && curr_command->argc == 2 ) 
+		{
+			int result = chdir(curr_command->argv[1]);
+			if (result == -1)
+			{
+				perror("chdir failed");
+			}
+
+			continue;
+		}
+		
+
+		// handle status
+		if (strcmp(curr_command->argv[0], "status") == 0) 
+		{
+
+			if (has_child_status == false)
+			{
+				printf("exit value 0\n");
+			}
+			else if (WIFEXITED(childStatus) == true)
+			{
+				printf("exit value %d\n", WEXITSTATUS(childStatus));
+
+			}
+			else if (WIFSIGNALED(childStatus) == true)
+			{
+				printf("terminated by signal %d\n", WTERMSIG(childStatus));
+			}
+			fflush(stdout);
+			continue;
+		}
+
+
 
 		pid_t spawnpid = 5;
 
@@ -90,7 +147,6 @@ int main()
 
 			if (curr_command->input_file != NULL)
 			{
-				isInput = true;
 
 				// handling input redirection 
 				int inputFD = open(curr_command->input_file, O_RDONLY);
@@ -117,7 +173,6 @@ int main()
 			if (curr_command->output_file != NULL)
 			{	
 				// handling output redirection
-				isOutput = true;
 
 				int outputFD = open(curr_command->output_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 				if (outputFD == -1)
@@ -126,7 +181,7 @@ int main()
 					exit(1);
 				}
 
-				printf("File descriptor of input file = %d\n", outputFD); 
+				printf("File descriptor of output file = %d\n", outputFD); 
 				fflush(stdout);
 
 				int result = dup2(outputFD, 1);
@@ -139,11 +194,11 @@ int main()
 				close(outputFD);
 
 			}
-					execvp(curr_command->argv[0], curr_command->argv);
-				
-			
 
 
+				execvp(curr_command->argv[0], curr_command->argv);
+				perror("execvp failed");
+				exit(1);
 
 			break;
 			
@@ -160,10 +215,16 @@ int main()
 			else
 			{
 				spawnpid = waitpid(spawnpid, &childStatus, 0 );
+				has_child_status = true;
+				if (strcmp(curr_command->argv[0], "status") == 0) 
+				{
+
+				}
 				printf("PARENT(%d): child(%d) terminated. Now parent is exiting\n", getpid(), spawnpid);
 
 
 			}
+			free(curr_command);
 			break;
 		}
 
