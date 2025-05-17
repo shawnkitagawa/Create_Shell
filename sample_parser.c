@@ -11,6 +11,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <fcntl.h>
+
 
 
 #define INPUT_LENGTH 2048
@@ -61,8 +63,14 @@ int main()
 
 	while(true)
 	{
+		bool isInput = false;
+		bool isOutput = false;
 		curr_command = parse_input();
 
+		if (curr_command->argc == 0 || curr_command->argv[0][0] == '#') 
+		{
+    		continue;
+		}
 
 		pid_t spawnpid = 5;
 
@@ -78,23 +86,84 @@ int main()
 
 		case 0:
 		// case when the child process is running 
-			printf("CHILD(%d) running ls command\n", getpid());
+			printf("CHILD(%d) running %s command\n", getpid(), curr_command->argv[0]);
+
+			if (curr_command->input_file != NULL)
+			{
+				isInput = true;
+
+				// handling input redirection 
+				int inputFD = open(curr_command->input_file, O_RDONLY);
+				if (inputFD == -1)
+				{
+					perror("Source open()");
+					exit(1);
+				}
+
+				printf("File descriptor of input file = %d\n", inputFD); 
+				fflush(stdout);
+
+				int result = dup2(inputFD, 0);
+				if (result == -1)
+				{
+					perror("source dup2()");
+					exit(2);
+				}
+				close(inputFD);
+
+			}
+
+
+			if (curr_command->output_file != NULL)
+			{	
+				// handling output redirection
+				isOutput = true;
+
+				int outputFD = open(curr_command->output_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+				if (outputFD == -1)
+				{
+					perror("source Open()");
+					exit(1);
+				}
+
+				printf("File descriptor of input file = %d\n", outputFD); 
+				fflush(stdout);
+
+				int result = dup2(outputFD, 1);
+				if (result == -1)
+				{
+					perror("source dup2()");
+					exit(2);
+				}
+
+				close(outputFD);
+
+			}
+					execvp(curr_command->argv[0], curr_command->argv);
+				
 			
-			execvp(curr_command->argv[0], curr_command->argv);
 
 
 
 			break;
 			
 			
-
-		case 1:
-		// case when the parent process is running 
-		
 		default:
-			
-			spawnpid = waitpid(spawnpid, &childStatus, 0 );
-			printf("PARENT(%d): child(%d) terminated. Now parent is exiting\n", getpid(), spawnpid);
+
+			// handle background ( work on this later )
+			if (curr_command->is_bg == true)
+			{
+				printf("background pid is %d\n", spawnpid);
+				fflush(stdout);
+
+			}
+			else
+			{
+				spawnpid = waitpid(spawnpid, &childStatus, 0 );
+				printf("PARENT(%d): child(%d) terminated. Now parent is exiting\n", getpid(), spawnpid);
+
+
+			}
 			break;
 		}
 
