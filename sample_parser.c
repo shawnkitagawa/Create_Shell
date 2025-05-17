@@ -57,6 +57,7 @@ struct command_line *parse_input()
 int main()
 {
 	struct command_line *curr_command;
+	int childStatus;
 
 	while(true)
 	{
@@ -80,6 +81,10 @@ int main()
 			printf("CHILD(%d) running ls command\n", getpid());
 			
 			execvp(curr_command->argv[0], curr_command->argv);
+
+
+
+			break;
 			
 			
 
@@ -87,6 +92,9 @@ int main()
 		// case when the parent process is running 
 		
 		default:
+			
+			spawnpid = waitpid(spawnpid, &childStatus, 0 );
+			printf("PARENT(%d): child(%d) terminated. Now parent is exiting\n", getpid(), spawnpid);
 			break;
 		}
 
