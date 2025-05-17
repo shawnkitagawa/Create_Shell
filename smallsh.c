@@ -61,10 +61,39 @@ int main()
 	struct command_line *curr_command;
 	int childStatus;
 	bool has_child_status = false;
+	pid_t spawnpid;
+
+
 
 	while(true)
 	{
 		curr_command = parse_input();
+
+		// handle background cheking whether the child process has finished the task 
+		while ((spawnpid = waitpid(-1,&childStatus,WNOHANG )) > 0)
+		{
+
+			printf("background pid %d is done:  ", spawnpid);
+
+			if (WIFEXITED(childStatus) == true)
+			{
+				// print status value of the child passed to exit()
+				// if background succesfully terminate
+				printf("exit value %d\n", WEXITSTATUS(childStatus));
+
+			}
+			// return true if the child was terminated abnormally
+			else if (WIFSIGNALED(childStatus) == true)
+			{
+				// return the signal number that caused the child to terminate.
+				// if background abnormally terminate
+				printf("terminated by signal %d\n", WTERMSIG(childStatus));
+			}
+			fflush(stdout);
+
+
+		}
+
 
 		// comments and blank line 
 		if (curr_command->argc == 0 || curr_command->argv[0][0] == '#') 
@@ -109,28 +138,29 @@ int main()
 		// handle status
 		if (strcmp(curr_command->argv[0], "status") == 0) 
 		{
-
+			// check there is status
 			if (has_child_status == false)
 			{
 				printf("exit value 0\n");
 			}
+			// return true if the child was terminated normally
 			else if (WIFEXITED(childStatus) == true)
 			{
+				// print status value of teh child passed to exit()
 				printf("exit value %d\n", WEXITSTATUS(childStatus));
 
 			}
+			// return true if the child was terminated abnormally
 			else if (WIFSIGNALED(childStatus) == true)
 			{
+				// return the signal number that caused the child to terminate.
 				printf("terminated by signal %d\n", WTERMSIG(childStatus));
 			}
 			fflush(stdout);
 			continue;
 		}
 
-
-
-		pid_t spawnpid = 5;
-
+		spawnpid = 5;
 		spawnpid = fork();
 
 		switch (spawnpid)
@@ -168,7 +198,27 @@ int main()
 				close(inputFD);
 
 			}
+			// handle background command standard input must be redirect to /dev/null
+			else if (curr_command->is_bg == true)
+			{
+				int inputFD = open("/dev/null", O_RDONLY);
+				if (inputFD == -1)
+				{
+					perror("Source open()");
+					exit(1);
+				}
+				printf("File descriptor of input file = %d\n", inputFD); 
+				fflush(stdout);
 
+				int result = dup2(inputFD, 0);
+				if (result == -1 )
+				{
+					perror("source dup2()");
+					exit(2);
+				}
+				close(inputFD);
+
+			}
 
 			if (curr_command->output_file != NULL)
 			{	
@@ -194,6 +244,28 @@ int main()
 				close(outputFD);
 
 			}
+			// handle background command standard output must be redirect to /dev/null
+			else if (curr_command->is_bg == true)
+			{
+				int outputFD = open("/dev/null", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+				if (outputFD == -1)
+				{
+					perror("Source open()");
+					exit(1);
+				}
+				printf("File descriptor of ouput file = %d\n", outputFD); 
+				fflush(stdout);
+
+				int result = dup2(outputFD, 1);
+				if (result == -1 )
+				{
+					perror("source dup2()");
+					exit(2);
+				}
+				close(outputFD);
+			}
+
+
 
 
 				execvp(curr_command->argv[0], curr_command->argv);
@@ -208,10 +280,12 @@ int main()
 			// handle background ( work on this later )
 			if (curr_command->is_bg == true)
 			{
+
 				printf("background pid is %d\n", spawnpid);
 				fflush(stdout);
 
 			}
+			// foreground
 			else
 			{
 				spawnpid = waitpid(spawnpid, &childStatus, 0 );
