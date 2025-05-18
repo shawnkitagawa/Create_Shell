@@ -13,6 +13,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <errno.h>
+
 
 #define INPUT_LENGTH 2048
 #define MAX_ARGS      512
@@ -89,7 +91,7 @@ int main()
     {
         while ((spawnpid = waitpid(-1,&childStatus,WNOHANG )) > 0)
         {
-            printf("background pid %d is done:  ", spawnpid);
+            printf("background pid %d is done: ", spawnpid);
             if (WIFEXITED(childStatus) == true)
             {
                 printf("exit value %d\n", WEXITSTATUS(childStatus));
@@ -252,7 +254,15 @@ int main()
                 }
 
                 execvp(curr_command->argv[0], curr_command->argv);
-                perror("execvp failed");
+
+                if (errno == ENOENT)
+                {
+                    fprintf(stderr, "%s: no such file or directory\n", curr_command->argv[0]);
+                }
+                else
+                {
+                    perror("execvp failed");
+                }
                 exit(1);
             }
             break;
